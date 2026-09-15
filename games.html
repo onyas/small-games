@@ -1,0 +1,603 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>中秋博饼积分榜</title>
+<style>
+  :root{
+    --night:#1B2340;
+    --night-deep:#121A31;
+    --paper:#FFF7E8;
+    --paper-dim:#F3E8D2;
+    --ink:#2A2A33;
+    --ink-soft:#6B6A75;
+    --gold:#F0C05A;
+    --gold-deep:#C9962E;
+    --line:rgba(42,42,51,.14);
+    --c1:#D8452B; --c2:#E39A2C; --c3:#3F8F6B; --c4:#7A5CB5;
+    --c5:#2F7FB8; --c6:#C2477F; --c7:#8A6D3B; --c8:#4F6D7A;
+    --serif:"Noto Serif SC","Songti SC","STSong","SimSun",serif;
+    --sans:"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Helvetica Neue",Arial,sans-serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--night);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.5}
+  button,input,select,textarea{font:inherit}
+  button{cursor:pointer}
+  :focus-visible{outline:3px solid var(--gold);outline-offset:2px}
+
+  /* ---------- header ---------- */
+  .top{position:relative;overflow:hidden;padding:26px 28px 22px;color:var(--paper);
+    background:radial-gradient(circle at 92% 30%, rgba(240,192,90,.28) 0, rgba(240,192,90,0) 34%), var(--night)}
+  .top::before{content:"";position:absolute;right:38px;top:18px;width:96px;height:96px;border-radius:50%;
+    background:radial-gradient(circle at 40% 38%, #FFF3CF 0, var(--gold) 55%, var(--gold-deep) 100%);
+    box-shadow:0 0 60px 12px rgba(240,192,90,.35)}
+  .top-inner{position:relative;display:flex;flex-wrap:wrap;gap:16px 28px;align-items:flex-end;justify-content:space-between;max-width:1280px;margin:0 auto}
+  .top h1{margin:0;font-family:var(--serif);font-weight:600;font-size:clamp(28px,4vw,42px);letter-spacing:.06em;line-height:1.15}
+  .top .sub{margin:6px 0 0;font-size:14px;color:rgba(255,247,232,.72);letter-spacing:.04em}
+  .toolbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+  .save-state{font-size:12px;color:rgba(255,247,232,.6);margin-right:6px}
+  .save-state.warn{color:#FFB38A}
+
+  .btn{border:1px solid rgba(255,247,232,.35);background:rgba(255,247,232,.08);color:var(--paper);border-radius:8px;padding:8px 14px;font-size:14px;transition:background .15s}
+  .btn:hover{background:rgba(255,247,232,.16)}
+  .btn.gold{background:var(--gold);border-color:var(--gold);color:var(--night)}
+  .btn.gold:hover{background:#F6CF78}
+  .btn.danger{border-color:rgba(216,69,43,.6);color:#FFB3A3}
+  .btn.danger:hover{background:rgba(216,69,43,.25)}
+  .btn.small{padding:5px 10px;font-size:13px;border-radius:6px}
+  .btn.ink{border-color:var(--line);background:#fff;color:var(--ink)}
+  .btn.ink:hover{background:var(--paper-dim)}
+  .btn.ink.danger{color:#B23A22;border-color:rgba(178,58,34,.35)}
+  .btn.ink.danger:hover{background:#FBE5DF}
+
+  /* ---------- layout ---------- */
+  .layout{max-width:1280px;margin:0 auto;padding:22px 28px 60px;display:grid;grid-template-columns:minmax(300px,380px) 1fr;gap:22px;align-items:start}
+  @media (max-width:960px){.layout{grid-template-columns:1fr;padding:16px 14px 48px}.top{padding:20px 16px 18px}.top::before{width:64px;height:64px;right:18px;top:10px}}
+
+  .sheet{background:var(--paper);border-radius:14px;box-shadow:0 18px 40px -22px rgba(0,0,0,.6)}
+  .sheet-head{display:flex;align-items:baseline;justify-content:space-between;gap:12px;padding:18px 20px 10px;border-bottom:1px solid var(--line)}
+  .sheet-head h2{margin:0;font-family:var(--serif);font-weight:600;font-size:20px;letter-spacing:.06em}
+  .sheet-head .hint{font-size:12px;color:var(--ink-soft)}
+
+  /* ---------- leaderboard ---------- */
+  .board-list{list-style:none;margin:0;padding:10px 12px 14px;display:flex;flex-direction:column;gap:10px}
+  .board-item{position:relative;display:grid;grid-template-columns:44px 1fr auto;gap:10px 12px;align-items:center;padding:12px 14px 12px 12px;background:#fff;border-radius:10px;border:1px solid var(--line);border-left:6px solid var(--gc, var(--c1))}
+  .board-item .rank{font-family:var(--serif);font-size:30px;font-weight:600;line-height:1;color:var(--ink-soft);text-align:center}
+  .board-item.first .rank{color:var(--gold-deep)}
+  .board-item .name{font-weight:600;font-size:17px}
+  .board-item .leader{font-size:12px;color:var(--ink-soft);margin-top:2px}
+  .board-item .total{font-family:var(--serif);font-size:38px;font-weight:600;line-height:1;font-variant-numeric:tabular-nums;color:var(--ink)}
+  .board-item .total small{font-family:var(--sans);font-size:12px;font-weight:400;color:var(--ink-soft);margin-left:4px}
+  .board-item .chips{grid-column:1 / -1;display:flex;flex-wrap:wrap;gap:6px 10px;font-size:12px;color:var(--ink-soft);padding-top:8px;border-top:1px dashed var(--line)}
+  .board-item .chips b{color:var(--ink);font-weight:600;font-variant-numeric:tabular-nums}
+  .board-item .chips .off{opacity:.45;text-decoration:line-through}
+  .empty{padding:30px 20px;text-align:center;color:var(--ink-soft)}
+
+  /* ---------- activity panel ---------- */
+  .tabs{display:flex;flex-wrap:wrap;gap:6px;padding:14px 16px 0}
+  .tab{border:1px solid var(--line);background:#fff;color:var(--ink);border-radius:999px;padding:6px 14px;font-size:14px}
+  .tab.active{background:var(--night);color:var(--paper);border-color:var(--night)}
+  .tab.disabled{opacity:.5}
+  .tab-add{border-style:dashed;color:var(--ink-soft)}
+
+  .act-head{display:flex;flex-wrap:wrap;gap:10px 16px;align-items:flex-start;justify-content:space-between;padding:16px 20px 6px}
+  .act-head h3{margin:0;font-family:var(--serif);font-size:22px;font-weight:600;letter-spacing:.04em}
+  .act-head .rule{margin:6px 0 0;font-size:13px;color:var(--ink-soft);max-width:60ch}
+  .act-head .meta{margin:8px 0 0;display:flex;flex-wrap:wrap;gap:6px}
+  .meta span{font-size:12px;background:var(--paper-dim);border-radius:6px;padding:3px 8px;color:var(--ink)}
+  .act-actions{display:flex;gap:8px;flex-wrap:wrap}
+
+  table.score{width:100%;border-collapse:collapse;margin-top:8px}
+  table.score th,table.score td{padding:10px 12px;text-align:left;border-top:1px solid var(--line);vertical-align:middle}
+  table.score th{font-size:12px;font-weight:500;color:var(--ink-soft);border-top:0;padding-top:6px;padding-bottom:6px}
+  table.score td.num,table.score th.num{text-align:right;font-variant-numeric:tabular-nums}
+  table.score td.sub{font-family:var(--serif);font-size:20px;font-weight:600}
+  table.score tr:last-child td{border-bottom:1px solid var(--line)}
+  .gname{display:flex;align-items:center;gap:8px;font-weight:600}
+  .dot{width:10px;height:10px;border-radius:50%;background:var(--gc);flex:none}
+  .stepper{display:inline-flex;align-items:center;border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff}
+  .stepper button{border:0;background:transparent;width:34px;height:36px;font-size:18px;color:var(--ink)}
+  .stepper button:hover{background:var(--paper-dim)}
+  .stepper input{width:64px;height:36px;border:0;border-left:1px solid var(--line);border-right:1px solid var(--line);text-align:center;font-size:16px;font-variant-numeric:tabular-nums;background:transparent;-moz-appearance:textfield}
+  .stepper input::-webkit-inner-spin-button,.stepper input::-webkit-outer-spin-button{-webkit-appearance:none}
+  .rank-cell{display:flex;align-items:center;gap:6px}
+  .rank-cell select{border:1px solid var(--line);border-radius:6px;padding:5px 6px;background:#fff}
+  .rank-cell .manual{font-size:11px;color:#B23A22}
+  .table-foot{display:flex;flex-wrap:wrap;gap:8px;justify-content:space-between;align-items:center;padding:12px 16px 16px;font-size:13px;color:var(--ink-soft)}
+  .muted{color:var(--ink-soft);font-size:13px}
+
+  /* ---------- dialogs ---------- */
+  dialog{border:0;border-radius:14px;padding:0;background:var(--paper);color:var(--ink);width:min(560px,94vw);box-shadow:0 30px 80px -20px rgba(0,0,0,.7)}
+  dialog::backdrop{background:rgba(18,26,49,.7)}
+  .dlg-head{display:flex;justify-content:space-between;align-items:center;padding:18px 22px 12px;border-bottom:1px solid var(--line)}
+  .dlg-head h3{margin:0;font-family:var(--serif);font-size:20px;font-weight:600}
+  .dlg-body{padding:16px 22px}
+  .dlg-foot{display:flex;justify-content:flex-end;gap:8px;padding:12px 22px 18px;border-top:1px solid var(--line)}
+  .field{display:grid;grid-template-columns:110px 1fr;gap:8px 12px;align-items:center;margin-bottom:12px}
+  .field label{font-size:14px;color:var(--ink-soft)}
+  .field input[type=text],.field input[type=number],.field select,.field textarea{width:100%;border:1px solid var(--line);border-radius:8px;padding:8px 10px;background:#fff}
+  .field textarea{resize:vertical;min-height:64px}
+  .field .help{grid-column:2;font-size:12px;color:var(--ink-soft);margin-top:-6px}
+  .check{display:flex;align-items:center;gap:8px}
+  .group-row{display:grid;grid-template-columns:14px 1fr 1fr auto;gap:10px;align-items:center;padding:8px 0;border-bottom:1px solid var(--line)}
+  .group-row input{border:1px solid var(--line);border-radius:8px;padding:7px 10px;background:#fff;width:100%}
+  .group-row .dot{width:14px;height:14px}
+
+  /* ---------- projection ---------- */
+  .proj{position:fixed;inset:0;background:var(--night-deep);color:var(--paper);display:none;flex-direction:column;padding:4vh 5vw;z-index:50;overflow:auto}
+  body.projection .proj{display:flex}
+  body.projection .layout,body.projection .top{display:none}
+  .proj-head{display:flex;justify-content:space-between;align-items:flex-end;gap:20px;margin-bottom:3vh}
+  .proj-head h1{margin:0;font-family:var(--serif);font-weight:600;font-size:clamp(28px,4.4vw,56px);letter-spacing:.08em}
+  .proj-head p{margin:6px 0 0;color:rgba(255,247,232,.65);font-size:clamp(14px,1.4vw,20px)}
+  .proj-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:2vw;margin-bottom:4vh}
+  .proj-card{position:relative;background:rgba(255,247,232,.06);border:1px solid rgba(255,247,232,.14);border-top:8px solid var(--gc);border-radius:16px;padding:2.2vh 2vw 2.6vh;text-align:center}
+  .proj-card .rank{font-family:var(--serif);font-size:clamp(16px,1.6vw,22px);color:rgba(255,247,232,.6)}
+  .proj-card.first .rank{color:var(--gold)}
+  .proj-card .name{font-size:clamp(20px,2.2vw,30px);font-weight:600;margin-top:.4vh}
+  .proj-card .total{font-family:var(--serif);font-weight:600;font-size:clamp(56px,7.5vw,110px);line-height:1;margin-top:1.2vh;color:var(--gold);font-variant-numeric:tabular-nums}
+  .proj-card.first .total{color:#FFE8A3;text-shadow:0 0 40px rgba(240,192,90,.55)}
+  .proj-card .leader{color:rgba(255,247,232,.6);font-size:clamp(12px,1.1vw,16px);margin-top:.6vh;min-height:1.2em}
+  table.proj-table{width:100%;border-collapse:collapse;font-size:clamp(14px,1.5vw,22px)}
+  table.proj-table th,table.proj-table td{padding:1.2vh 1vw;border-bottom:1px solid rgba(255,247,232,.12);text-align:right;font-variant-numeric:tabular-nums}
+  table.proj-table th{color:rgba(255,247,232,.6);font-weight:500}
+  table.proj-table th:first-child,table.proj-table td:first-child{text-align:left}
+  table.proj-table td.tot{font-family:var(--serif);font-weight:600;color:var(--gold)}
+  table.proj-table .off{opacity:.4}
+  .proj-tip{position:fixed;right:20px;bottom:16px;font-size:13px;color:rgba(255,247,232,.5)}
+
+  @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="top-inner">
+    <div>
+      <h1>中秋博饼积分榜</h1>
+      <p class="sub">骰子一响，快乐开场 2026年9月19日</p>
+    </div>
+    <div class="toolbar">
+      <span class="save-state" id="saveState"></span>
+      <button class="btn gold" id="btnProj">投影模式</button>
+      <button class="btn" id="btnGroups">管理小组</button>
+      <button class="btn" id="btnExport">导出备份</button>
+      <button class="btn" id="btnImport">导入备份</button>
+      <input type="file" id="fileImport" accept="application/json" hidden>
+      <button class="btn danger" id="btnReset">清空重置</button>
+    </div>
+  </div>
+</header>
+
+<main class="layout">
+  <section class="sheet" aria-labelledby="boardTitle">
+    <div class="sheet-head">
+      <h2 id="boardTitle">总分榜</h2>
+      <span class="hint">各活动排名分实时汇总</span>
+    </div>
+    <ol class="board-list" id="board"></ol>
+  </section>
+
+  <section class="sheet" aria-labelledby="actTitle">
+    <div class="tabs" id="tabs"></div>
+    <div id="panel"></div>
+  </section>
+</main>
+
+<div class="proj" id="proj" aria-hidden="true">
+  <div class="proj-head">
+    <div>
+      <h1>中秋博饼积分榜</h1>
+      <p>骰子一响，快乐开场</p>
+    </div>
+    <button class="btn" id="btnProjExit">返回记分</button>
+  </div>
+  <div class="proj-grid" id="projGrid"></div>
+  <div id="projTable"></div>
+  <div class="proj-tip">按 Esc 退出投影</div>
+</div>
+
+<dialog id="dlgGroups">
+  <div class="dlg-head"><h3>管理小组</h3><button class="btn ink small" data-close>关闭</button></div>
+  <div class="dlg-body">
+    <p class="muted" style="margin:0 0 8px">修改组名或组长后自动保存。删除小组会同时删除该组所有成绩。</p>
+    <div id="groupRows"></div>
+    <div style="margin-top:12px"><button class="btn ink small" id="btnAddGroup">新增小组</button></div>
+  </div>
+</dialog>
+
+<dialog id="dlgAct">
+  <div class="dlg-head"><h3 id="dlgActTitle">编辑活动</h3><button class="btn ink small" data-close>关闭</button></div>
+  <div class="dlg-body">
+    <div class="field"><label for="fName">活动名称</label><input type="text" id="fName" placeholder="例如：猜灯谜"></div>
+    <div class="field"><label for="fMetric">记录项</label><input type="text" id="fMetric" placeholder="例如：答对题数 / 剩余球数">
+      <div class="help">现场记录的原始数据名称，排名据此自动生成</div></div>
+    <div class="field"><label for="fOrder">排名方式</label>
+      <select id="fOrder"><option value="desc">数值越大名次越高</option><option value="asc">数值越小名次越高</option></select></div>
+    <div class="field"><label for="fPerUnit">每单位基础分</label><input type="number" id="fPerUnit" step="1" min="0">
+      <div class="help">例如答对一题 +2 分则填 2；只计排名分的活动填 0</div></div>
+    <div class="field"><label>计基础分</label><div class="check"><input type="checkbox" id="fIncludeBase"><label for="fIncludeBase">是，基础分计入本项小计（仅活动内展示，不入总分）</label></div></div>
+    <div class="field"><label for="fRankPts">排名分</label><input type="text" id="fRankPts" placeholder="10,8,6,4">
+      <div class="help">第1名到第N名依次对应，逗号分隔；名次超出时按最后一个值。总分榜只累加排名分</div></div>
+    <div class="field"><label>计入总分</label><div class="check"><input type="checkbox" id="fEnabled"><label for="fEnabled">本活动成绩计入总分榜</label></div></div>
+    <div class="field"><label for="fNote">规则说明</label><textarea id="fNote" placeholder="记分员看的简要规则"></textarea></div>
+  </div>
+  <div class="dlg-foot">
+    <button class="btn ink danger" id="btnDelAct" style="margin-right:auto">删除此活动</button>
+    <button class="btn ink" data-close>取消</button>
+    <button class="btn gold" id="btnSaveAct">保存</button>
+  </div>
+</dialog>
+
+<script>
+(function(){
+  'use strict';
+  const KEY = 'hx-2024-4-midautumn-score-v1';
+  const COLORS = ['var(--c1)','var(--c2)','var(--c3)','var(--c4)','var(--c5)','var(--c6)','var(--c7)','var(--c8)'];
+
+  function DEFAULT(){
+    return {
+      groups: [
+        {id:'g1', name:'第一组', leader:''},
+        {id:'g2', name:'第二组', leader:''},
+        {id:'g3', name:'第三组', leader:''},
+        {id:'g4', name:'第四组', leader:''}
+      ],
+      activities: [
+        {id:'a2', name:'猜灯谜', metric:'答对题数', perUnit:2, order:'desc', includeBase:true, rankPts:[10,8,6,4], enabled:true,
+         note:'亲子协作举手抢答，答对一题 +2 分，答错不扣分可由其他组补答。20 题 + 10 题备选。基础分只作本项记录，总分榜只累加排名分。'},
+        {id:'a3', name:'你画我猜', metric:'猜对题数', perUnit:2, order:'desc', includeBase:true, rankPts:[10,8,6,4], enabled:true,
+         note:'三轮，每轮每组派 1 组亲子上台，每组限时 60 秒，最多可过 3 次。不得说屏幕原字或同音字，违规该题作废。猜对 1 题 +2 分。'},
+        {id:'a4', name:'诗词接龙 成语填空', metric:'答对题数', perUnit:2, order:'desc', includeBase:true, rankPts:[10,8,6,4], enabled:true,
+         note:'每组派 1 名学生代表上台抢答，学生独立作答，共 3 轮每轮 10 题。答对 +2 分，答错不扣分可补答。'},
+        {id:'a5', name:'抖球', metric:'剩余球数', perUnit:0, order:'asc', includeBase:false, rankPts:[10,8,6,4], enabled:true,
+         note:'共 4 轮（2 轮孩子、2 轮家长），每轮各派 1 名代表，限时 60 秒，双手禁碰器材。剩余球最少者胜，全部掉落按用时排名。本项只计排名分；若按用时定名次，直接在名次栏手动指定。'},
+        {id:'a6', name:'定点投球', metric:'进球数', perUnit:2, order:'desc', includeBase:true, rankPts:[10,8,6,4], enabled:true,
+         note:'孩子投距 1.5 米、家长 2.5 米，每人 5 颗球，各组孩子 + 1 名家长全部上场（每组 12 人）。进 1 球 +2 分，全员累加。'}
+      ],
+      scores: {},
+      currentAct: 'a2'
+    };
+  }
+
+  // ---------- storage ----------
+  let memoryOnly = false;
+  function load(){
+    try{
+      const raw = localStorage.getItem(KEY);
+      if(raw){ const s = JSON.parse(raw); if(s && Array.isArray(s.groups) && Array.isArray(s.activities)) return s; }
+    }catch(e){ memoryOnly = true; }
+    return DEFAULT();
+  }
+  function save(){
+    try{ localStorage.setItem(KEY, JSON.stringify(state)); memoryOnly = false; }
+    catch(e){ memoryOnly = true; }
+    renderSaveState();
+  }
+  function renderSaveState(){
+    const el = document.getElementById('saveState');
+    if(memoryOnly){
+      el.textContent = '当前环境无法本地保存，请下载文件后用浏览器打开';
+      el.classList.add('warn');
+    }else{
+      el.textContent = '已自动保存到本机 ' + new Date().toLocaleTimeString('zh-CN',{hour:'2-digit',minute:'2-digit'});
+      el.classList.remove('warn');
+    }
+  }
+
+  let state = load();
+  if(!state.scores) state.scores = {};
+  // 迁移：移除已下线的「博饼」活动及其成绩
+  state.activities = state.activities.filter(a => a.id!=='a1' && a.name!=='博饼');
+  delete state.scores['a1'];
+  if(!state.currentAct || !state.activities.some(a=>a.id===state.currentAct)) state.currentAct = state.activities[0] ? state.activities[0].id : null;
+
+  // ---------- helpers ----------
+  const $ = (sel, root=document) => root.querySelector(sel);
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+  const uid = p => p + Math.random().toString(36).slice(2,8) + Date.now().toString(36).slice(-3);
+  const colorOf = idx => COLORS[idx % COLORS.length];
+  const fmt = n => Number.isInteger(n) ? String(n) : String(Math.round(n*100)/100);
+  function cell(actId, gId){
+    if(!state.scores[actId]) state.scores[actId] = {};
+    if(!state.scores[actId][gId]) state.scores[actId][gId] = {metric:null, rank:null};
+    return state.scores[actId][gId];
+  }
+
+  // ---------- computation ----------
+  function computeActivity(act){
+    const rows = state.groups.map(g => {
+      const s = (state.scores[act.id] || {})[g.id] || {};
+      return {g, metric: (s.metric==null ? null : Number(s.metric)), override: (s.rank==null ? null : Number(s.rank)), autoRank:null};
+    });
+    const scored = rows.filter(r => r.metric!=null)
+      .sort((a,b) => act.order==='asc' ? a.metric-b.metric : b.metric-a.metric);
+    let rank = 0, prev = null;
+    scored.forEach((r,i) => { if(prev===null || r.metric!==prev){ rank = i+1; prev = r.metric; } r.autoRank = rank; });
+    const pts = act.rankPts && act.rankPts.length ? act.rankPts : [0];
+    const out = {};
+    rows.forEach(r => {
+      const rk = r.override!=null ? r.override : r.autoRank;
+      const rankPts = rk!=null ? (pts[rk-1] ?? pts[pts.length-1] ?? 0) : 0;
+      const base = (act.includeBase && r.metric!=null) ? r.metric * (act.perUnit||0) : 0;
+      out[r.g.id] = {metric:r.metric, rank:rk, manual:r.override!=null, autoRank:r.autoRank, rankPts, base, subtotal: base};
+    });
+    return out;
+  }
+  function computeAll(){
+    const per = {};
+    state.activities.forEach(a => per[a.id] = computeActivity(a));
+    const totals = state.groups.map(g => {
+      let rankPts = 0;
+      state.activities.forEach(a => { if(a.enabled) rankPts += per[a.id][g.id].rankPts; });
+      return {g, rankPts, total: rankPts};
+    });
+    const sorted = totals.slice().sort((a,b)=>b.total-a.total);
+    let rank = 0, prev = null;
+    sorted.forEach((r,i)=>{ if(prev===null || r.total!==prev){ rank=i+1; prev=r.total; } r.rank = rank; });
+    return {per, totals:sorted};
+  }
+
+  // ---------- render: leaderboard ----------
+  function renderBoard(){
+    const {per, totals} = computeAll();
+    const ol = $('#board');
+    if(!state.groups.length){ ol.innerHTML = '<li class="empty">还没有小组。点击右上角「管理小组」添加。</li>'; return; }
+    ol.innerHTML = totals.map(r => {
+      const gi = state.groups.indexOf(r.g);
+      const chips = state.activities.map(a => {
+        const c = per[a.id][r.g.id];
+        return `<span class="${a.enabled?'':'off'}">${esc(a.name)} <b>${fmt(c.rankPts)}</b></span>`;
+      }).join('');
+      return `<li class="board-item ${r.rank===1?'first':''}" style="--gc:${colorOf(gi)}">
+        <div class="rank">${r.rank}</div>
+        <div><div class="name">${esc(r.g.name)}</div><div class="leader">${r.g.leader ? '组长 '+esc(r.g.leader) : '未填组长'}</div></div>
+        <div class="total">${fmt(r.total)}<small>分</small></div>
+        <div class="chips">${chips}</div>
+      </li>`;
+    }).join('');
+  }
+
+  // ---------- render: tabs + panel ----------
+  function renderTabs(){
+    const wrap = $('#tabs');
+    wrap.innerHTML = state.activities.map(a =>
+      `<button class="tab ${a.id===state.currentAct?'active':''} ${a.enabled?'':'disabled'}" data-act="${a.id}">${esc(a.name)}</button>`
+    ).join('') + `<button class="tab tab-add" id="tabAdd">+ 新增活动</button>`;
+    wrap.querySelectorAll('[data-act]').forEach(b => b.addEventListener('click', () => { state.currentAct = b.dataset.act; save(); renderAll(); }));
+    $('#tabAdd').addEventListener('click', () => openActDialog(null));
+  }
+
+  function renderPanel(){
+    const panel = $('#panel');
+    const act = state.activities.find(a => a.id===state.currentAct);
+    if(!act){ panel.innerHTML = '<div class="empty">还没有活动项目。点击「+ 新增活动」开始。</div>'; return; }
+    const res = computeActivity(act);
+    const idx = state.activities.indexOf(act);
+    const maxRank = Math.max(state.groups.length, act.rankPts.length);
+    const rankOpts = r => ['<option value="">自动</option>'].concat(
+      Array.from({length:maxRank}, (_,i)=>`<option value="${i+1}" ${r.manual&&r.rank===i+1?'selected':''}>第${i+1}名</option>`)).join('');
+
+    const rows = state.groups.map((g,gi) => {
+      const r = res[g.id];
+      const rankText = r.rank!=null ? `第${r.rank}名` : '未记录';
+      return `<tr>
+        <td><span class="gname" style="--gc:${colorOf(gi)}"><span class="dot"></span>${esc(g.name)}</span></td>
+        <td>
+          <span class="stepper">
+            <button type="button" data-step="-1" data-g="${g.id}" aria-label="减一">−</button>
+            <input type="number" step="any" data-metric="${g.id}" value="${r.metric==null?'':fmt(r.metric)}" placeholder="—" aria-label="${esc(act.metric)}">
+            <button type="button" data-step="1" data-g="${g.id}" aria-label="加一">+</button>
+          </span>
+        </td>
+        <td class="num sub">${act.includeBase ? fmt(r.subtotal) : '<span class="muted" style="font-family:var(--sans);font-size:13px;font-weight:400">不计</span>'}</td>
+        <td><span class="rank-cell">
+          <select data-rank="${g.id}" aria-label="名次">${rankOpts(r)}</select>
+          <span class="muted">${r.manual ? '<span class="manual">手动</span>' : rankText}</span>
+        </span></td>
+        <td class="num">${fmt(r.rankPts)}</td>
+      </tr>`;
+    }).join('');
+
+    panel.innerHTML = `
+      <div class="act-head">
+        <div>
+          <h3>${esc(act.name)}</h3>
+          ${act.note ? `<p class="rule">${esc(act.note)}</p>` : ''}
+          <div class="meta">
+            <span>记录项：${esc(act.metric)}</span>
+            <span>${act.order==='asc'?'数值越小名次越高':'数值越大名次越高'}</span>
+            <span>${act.includeBase ? `每单位 +${fmt(act.perUnit)} 分` : '只计排名分'}</span>
+            <span>排名分 ${act.rankPts.join(' / ')}</span>
+            ${act.enabled ? '' : '<span style="background:#FBE5DF;color:#B23A22">未计入总分</span>'}
+          </div>
+        </div>
+        <div class="act-actions">
+          <button class="btn ink small" data-move="-1" ${idx===0?'disabled':''}>上移</button>
+          <button class="btn ink small" data-move="1" ${idx===state.activities.length-1?'disabled':''}>下移</button>
+          <button class="btn ink small" id="btnEditAct">活动设置</button>
+        </div>
+      </div>
+      ${state.groups.length ? `
+      <table class="score">
+        <thead><tr>
+          <th>小组</th><th>${esc(act.metric)}</th><th class="num">本项小计（基础分）</th><th>名次</th><th class="num">排名分（计入总分）</th>
+        </tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <div class="table-foot">
+        <span>名次默认按${esc(act.metric)}自动排，并列同名次；需要按用时或裁定调整时可手动指定名次。</span>
+        <button class="btn ink small danger" id="btnClearAct">清空本项成绩</button>
+      </div>` : '<div class="empty">请先在「管理小组」中添加小组。</div>'}
+    `;
+
+    panel.querySelectorAll('[data-metric]').forEach(inp => inp.addEventListener('change', () => {
+      const v = inp.value.trim();
+      cell(act.id, inp.dataset.metric).metric = v==='' ? null : Number(v);
+      save(); renderAll();
+    }));
+    panel.querySelectorAll('[data-step]').forEach(b => b.addEventListener('click', () => {
+      const c = cell(act.id, b.dataset.g);
+      c.metric = Math.max(0, (c.metric==null?0:Number(c.metric)) + Number(b.dataset.step));
+      save(); renderAll();
+    }));
+    panel.querySelectorAll('[data-rank]').forEach(sel => sel.addEventListener('change', () => {
+      cell(act.id, sel.dataset.rank).rank = sel.value==='' ? null : Number(sel.value);
+      save(); renderAll();
+    }));
+    panel.querySelectorAll('[data-move]').forEach(b => b.addEventListener('click', () => {
+      const to = idx + Number(b.dataset.move);
+      if(to<0 || to>=state.activities.length) return;
+      state.activities.splice(idx,1); state.activities.splice(to,0,act);
+      save(); renderAll();
+    }));
+    $('#btnEditAct').addEventListener('click', () => openActDialog(act));
+    const clr = $('#btnClearAct');
+    if(clr) clr.addEventListener('click', () => {
+      if(confirm(`确定清空「${act.name}」所有小组的成绩？`)){ delete state.scores[act.id]; save(); renderAll(); }
+    });
+  }
+
+  // ---------- render: projection ----------
+  function renderProjection(){
+    if(!document.body.classList.contains('projection')) return;
+    const {per, totals} = computeAll();
+    $('#projGrid').innerHTML = totals.map(r => {
+      const gi = state.groups.indexOf(r.g);
+      return `<div class="proj-card ${r.rank===1?'first':''}" style="--gc:${colorOf(gi)}">
+        <div class="rank">第 ${r.rank} 名</div>
+        <div class="name">${esc(r.g.name)}</div>
+        <div class="total">${fmt(r.total)}</div>
+        <div class="leader">${r.g.leader ? '组长 '+esc(r.g.leader) : ''}</div>
+      </div>`;
+    }).join('');
+    const head = `<tr><th>小组</th>${state.activities.map(a=>`<th class="${a.enabled?'':'off'}">${esc(a.name)}</th>`).join('')}<th>总分</th></tr>`;
+    const body = totals.map(r => `<tr><td>${esc(r.g.name)}</td>${state.activities.map(a=>`<td class="${a.enabled?'':'off'}">${fmt(per[a.id][r.g.id].rankPts)}</td>`).join('')}<td class="tot">${fmt(r.total)}</td></tr>`).join('');
+    $('#projTable').innerHTML = `<table class="proj-table"><thead>${head}</thead><tbody>${body}</tbody></table>`;
+  }
+
+  function renderAll(){ renderBoard(); renderTabs(); renderPanel(); renderProjection(); }
+
+  // ---------- groups dialog ----------
+  const dlgGroups = $('#dlgGroups');
+  function renderGroupRows(){
+    const wrap = $('#groupRows');
+    wrap.innerHTML = state.groups.map((g,gi) => `
+      <div class="group-row" style="--gc:${colorOf(gi)}">
+        <span class="dot"></span>
+        <input type="text" data-gname="${g.id}" value="${esc(g.name)}" placeholder="组名" aria-label="组名">
+        <input type="text" data-gleader="${g.id}" value="${esc(g.leader)}" placeholder="组长（可选）" aria-label="组长">
+        <button class="btn ink small danger" data-gdel="${g.id}">删除</button>
+      </div>`).join('') || '<p class="muted">暂无小组</p>';
+    wrap.querySelectorAll('[data-gname]').forEach(i => i.addEventListener('change', () => {
+      const g = state.groups.find(x=>x.id===i.dataset.gname); g.name = i.value.trim() || g.name; save(); renderAll(); renderGroupRows();
+    }));
+    wrap.querySelectorAll('[data-gleader]').forEach(i => i.addEventListener('change', () => {
+      const g = state.groups.find(x=>x.id===i.dataset.gleader); g.leader = i.value.trim(); save(); renderAll();
+    }));
+    wrap.querySelectorAll('[data-gdel]').forEach(b => b.addEventListener('click', () => {
+      const g = state.groups.find(x=>x.id===b.dataset.gdel);
+      if(!confirm(`删除「${g.name}」？该组所有成绩将一并删除。`)) return;
+      state.groups = state.groups.filter(x=>x!==g);
+      Object.values(state.scores).forEach(m => delete m[g.id]);
+      save(); renderAll(); renderGroupRows();
+    }));
+  }
+  $('#btnGroups').addEventListener('click', () => { renderGroupRows(); dlgGroups.showModal(); });
+  $('#btnAddGroup').addEventListener('click', () => {
+    const n = state.groups.length + 1;
+    state.groups.push({id:uid('g'), name:'第' + (n<=10 ? '一二三四五六七八九十'[n-1] : n) + '组', leader:''});
+    save(); renderAll(); renderGroupRows();
+    const inputs = $('#groupRows').querySelectorAll('[data-gname]'); inputs[inputs.length-1]?.select();
+  });
+
+  // ---------- activity dialog ----------
+  const dlgAct = $('#dlgAct');
+  let editingAct = null;
+  function openActDialog(act){
+    editingAct = act;
+    $('#dlgActTitle').textContent = act ? '活动设置' : '新增活动';
+    $('#fName').value = act ? act.name : '';
+    $('#fMetric').value = act ? act.metric : '得分';
+    $('#fOrder').value = act ? act.order : 'desc';
+    $('#fPerUnit').value = act ? act.perUnit : 2;
+    $('#fIncludeBase').checked = act ? !!act.includeBase : true;
+    $('#fRankPts').value = act ? act.rankPts.join(',') : '10,8,6,4';
+    $('#fEnabled').checked = act ? act.enabled!==false : true;
+    $('#fNote').value = act ? (act.note||'') : '';
+    $('#btnDelAct').style.display = act ? '' : 'none';
+    dlgAct.showModal();
+    $('#fName').focus();
+  }
+  $('#btnSaveAct').addEventListener('click', () => {
+    const name = $('#fName').value.trim();
+    if(!name){ $('#fName').focus(); $('#fName').reportValidity?.(); alert('请填写活动名称'); return; }
+    const rankPts = $('#fRankPts').value.split(/[,，\s/]+/).map(Number).filter(n=>!Number.isNaN(n));
+    const data = {
+      name, metric: $('#fMetric').value.trim() || '得分',
+      order: $('#fOrder').value, perUnit: Number($('#fPerUnit').value)||0,
+      includeBase: $('#fIncludeBase').checked, rankPts: rankPts.length ? rankPts : [10,8,6,4],
+      enabled: $('#fEnabled').checked, note: $('#fNote').value.trim()
+    };
+    if(editingAct){ Object.assign(editingAct, data); }
+    else { const a = Object.assign({id:uid('a')}, data); state.activities.push(a); state.currentAct = a.id; }
+    dlgAct.close(); save(); renderAll();
+  });
+  $('#btnDelAct').addEventListener('click', () => {
+    if(!editingAct) return;
+    if(!confirm(`删除活动「${editingAct.name}」及其全部成绩？`)) return;
+    state.activities = state.activities.filter(a=>a!==editingAct);
+    delete state.scores[editingAct.id];
+    if(state.currentAct===editingAct.id) state.currentAct = state.activities[0]?.id || null;
+    dlgAct.close(); save(); renderAll();
+  });
+  document.querySelectorAll('dialog [data-close]').forEach(b => b.addEventListener('click', () => b.closest('dialog').close()));
+
+  // ---------- projection ----------
+  function setProjection(on){
+    document.body.classList.toggle('projection', on);
+    $('#proj').setAttribute('aria-hidden', on ? 'false' : 'true');
+    if(on) renderProjection();
+  }
+  $('#btnProj').addEventListener('click', () => setProjection(true));
+  $('#btnProjExit').addEventListener('click', () => setProjection(false));
+  document.addEventListener('keydown', e => { if(e.key==='Escape' && document.body.classList.contains('projection')) setProjection(false); });
+
+  // ---------- export / import / reset ----------
+  $('#btnExport').addEventListener('click', () => {
+    const blob = new Blob([JSON.stringify(state,null,2)], {type:'application/json'});
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = `中秋博饼积分_${new Date().toISOString().slice(0,16).replace(/[:T]/g,'-')}.json`;
+    a.click(); URL.revokeObjectURL(a.href);
+  });
+  $('#btnImport').addEventListener('click', () => $('#fileImport').click());
+  $('#fileImport').addEventListener('change', e => {
+    const f = e.target.files[0]; if(!f) return;
+    const rd = new FileReader();
+    rd.onload = () => {
+      try{
+        const s = JSON.parse(rd.result);
+        if(!s || !Array.isArray(s.groups) || !Array.isArray(s.activities)) throw new Error('bad');
+        if(!confirm('导入将覆盖当前所有数据，确定继续？')) return;
+        state = s; if(!state.scores) state.scores = {};
+        if(!state.activities.some(a=>a.id===state.currentAct)) state.currentAct = state.activities[0]?.id || null;
+        save(); renderAll();
+      }catch(err){ alert('文件格式不正确，无法导入。请选择本应用导出的 JSON 备份。'); }
+      e.target.value = '';
+    };
+    rd.readAsText(f);
+  });
+  $('#btnReset').addEventListener('click', () => {
+    if(!confirm('清空所有成绩并恢复默认的小组与活动设置？此操作不可撤销，建议先导出备份。')) return;
+    state = DEFAULT(); save(); renderAll();
+  });
+
+  // ---------- go ----------
+  renderSaveState();
+  renderAll();
+})();
+</script>
+</body>
+</html>
