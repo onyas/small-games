@@ -134,6 +134,8 @@
   .stepper button:hover{background:var(--paper-dim)}
   .stepper input{width:64px;height:36px;border:0;border-left:1px solid var(--line);border-right:1px solid var(--line);text-align:center;font-size:16px;font-variant-numeric:tabular-nums;background:transparent;-moz-appearance:textfield}
   .stepper input::-webkit-inner-spin-button,.stepper input::-webkit-outer-spin-button{-webkit-appearance:none}
+  .disc-input{width:72px;height:36px;border:1px solid var(--line);border-radius:8px;text-align:center;font-size:18px;font-family:var(--serif);font-weight:600;font-variant-numeric:tabular-nums;background:#fff;-moz-appearance:textfield}
+  .disc-input::-webkit-inner-spin-button,.disc-input::-webkit-outer-spin-button{-webkit-appearance:none}
   .rank-cell{display:flex;align-items:center;gap:6px}
   .rank-cell select{border:1px solid var(--line);border-radius:6px;padding:5px 6px;background:#fff}
   .rank-cell .manual{font-size:11px;color:#B23A22}
@@ -381,8 +383,8 @@
          note:'共 4 轮（2 轮孩子、2 轮家长），每轮各派 1 名代表，限时 60 秒，双手禁碰器材。剩余球最少者胜，全部掉落按用时排名。本项只计排名分；若按用时定名次，直接在名次栏手动指定。'},
         {id:'a6', name:'定点投球', metric:'进球数', perUnit:2, order:'desc', includeBase:true, rankPts:[10,8,6,4], enabled:true,
          note:'孩子投距 1.5 米、家长 2.5 米，每人 5 颗球，各组孩子 + 1 名家长全部上场（每组 12 人）。进 1 球 +2 分，全员累加。'},
-        {id:'a7', name:'纪律分', metric:'纪律分', perUnit:1, order:'desc', includeBase:true, useRank:false, rankPts:[10,8,6,4], enabled:true,
-         note:'全场纪律表现记分，以 1 分为单位，可加可减。本项不计排名分，只按基础分累计。'}
+        {id:'a7', name:'纪律分', metric:'纪律分', perUnit:1, order:'desc', includeBase:true, useRank:false, disc:true, baseStart:10, rankPts:[10,8,6,4], enabled:true,
+         note:'纪律分单独设置，每组基础分 10 分。各组服从指令、不影响游戏环节、较好控制情绪，表现较好的可视情况给予加分，每次加分上限 2 分；违反纪律一次扣 3 分；纪律分扣完后如继续违反规定，一次扣 10 分。'}
       ],
       scores: {},
       accumulateBase: true,
@@ -431,6 +433,15 @@
     }
     state.migDiscipline = true;
   }
+  // 迁移：纪律分新规则（基础分 10 分/组，加分每次上限 2 分，违纪 −3，扣完后 −10，且不受基础分开关影响）
+  if(!state.migDiscipline2){
+    const d = state.activities.find(a=>a.id==='a7' || (a.name==='纪律分' && a.useRank===false));
+    if(d){
+      d.disc = true; d.baseStart = 10; d.perUnit = 1; d.includeBase = true; d.useRank = false;
+      d.note = '纪律分单独设置，每组基础分 10 分。各组服从指令、不影响游戏环节、较好控制情绪，表现较好的可视情况给予加分，每次加分上限 2 分；违反纪律一次扣 3 分；纪律分扣完后如继续违反规定，一次扣 10 分。';
+    }
+    state.migDiscipline2 = true;
+  }
   if(!state.currentAct || !state.activities.some(a=>a.id===state.currentAct)) state.currentAct = state.activities[0] ? state.activities[0].id : null;
 
   // ---------- helpers ----------
@@ -449,7 +460,9 @@
   function computeActivity(act){
     const rows = state.groups.map(g => {
       const s = (state.scores[act.id] || {})[g.id] || {};
-      return {g, metric: (s.metric==null ? null : Number(s.metric)), override: (s.rank==null ? null : Number(s.rank)), autoRank:null};
+      let metric = (s.metric==null ? null : Number(s.metric));
+      if(act.disc && metric==null) metric = (act.baseStart==null ? 10 : Number(act.baseStart));
+      return {g, metric, override: (s.rank==null ? null : Number(s.rank)), autoRank:null};
     });
     const scored = rows.filter(r => r.metric!=null)
       .sort((a,b) => act.order==='asc' ? a.metric-b.metric : b.metric-a.metric);
@@ -472,8 +485,8 @@
     const useBase = state.accumulateBase!==false;
     const totals = state.groups.map(g => {
       let rankPts = 0, basePts = 0;
-      state.activities.forEach(a => { if(a.enabled){ rankPts += per[a.id][g.id].rankPts; basePts += per[a.id][g.id].base; } });
-      return {g, rankPts, basePts, total: rankPts + (useBase ? basePts : 0)};
+      state.activities.forEach(a => { if(a.enabled){ rankPts += per[a.id][g.id].rankPts; if(useBase || a.disc) basePts += per[a.id][g.id].base; } });
+      return {g, rankPts, basePts, total: rankPts + basePts};
     });
     const sorted = totals.slice().sort((a,b)=>b.total-a.total);
     let rank = 0, prev = null;
@@ -485,14 +498,15 @@
   function renderBoard(){
     const {per, totals} = computeAll();
     const useBase = state.accumulateBase!==false;
-    $('#boardHint').textContent = useBase ? '各活动排名分 + 基础分实时汇总' : '各活动排名分实时汇总';
+    const hasDisc = state.activities.some(a=>a.disc && a.enabled);
+    $('#boardHint').textContent = useBase ? '各活动排名分 + 基础分实时汇总' : (hasDisc ? '各活动排名分 + 纪律分实时汇总' : '各活动排名分实时汇总');
     const ol = $('#board');
     if(!state.groups.length){ ol.innerHTML = '<li class="empty">还没有小组。点击右上角「管理小组」添加。</li>'; return; }
     ol.innerHTML = totals.map(r => {
       const gi = state.groups.indexOf(r.g);
       const chips = state.activities.map(a => {
         const c = per[a.id][r.g.id];
-        return `<span class="${a.enabled?'':'off'}">${esc(a.name)} <b>${fmt(c.rankPts + (useBase ? c.base : 0))}</b></span>`;
+        return `<span class="${a.enabled?'':'off'}">${esc(a.name)} <b>${fmt(c.rankPts + ((useBase || a.disc) ? c.base : 0))}</b></span>`;
       }).join('');
       return `<li class="board-item ${r.rank===1?'first':''}" style="--gc:${colorOf(gi)}">
         <div class="rank">${r.rank}</div>
@@ -526,6 +540,19 @@
 
     const rows = state.groups.map((g,gi) => {
       const r = res[g.id];
+      if(act.disc){
+        const vio = r.metric > 0 ? 3 : 10;
+        return `<tr>
+          <td><span class="gname" style="--gc:${colorOf(gi)}"><span class="dot"></span>${esc(g.name)}</span></td>
+          <td class="num"><input class="disc-input" type="number" step="1" data-metric="${g.id}" value="${fmt(r.metric)}" aria-label="当前纪律分"></td>
+          <td>
+            <button class="btn ink small" data-disc="1" data-g="${g.id}">表现好 +1</button>
+            <button class="btn ink small" data-disc="2" data-g="${g.id}">表现好 +2</button>
+          </td>
+          <td><button class="btn ink small danger" data-disc="v" data-g="${g.id}">违纪 −${vio}</button></td>
+          <td class="num sub">${fmt(r.subtotal)}</td>
+        </tr>`;
+      }
       const rankText = r.rank!=null ? `第${r.rank}名` : '未记录';
       return `<tr>
         <td><span class="gname" style="--gc:${colorOf(gi)}"><span class="dot"></span>${esc(g.name)}</span></td>
@@ -551,10 +578,11 @@
           <h3>${esc(act.name)}</h3>
           ${act.note ? `<p class="rule">${esc(act.note)}</p>` : ''}
           <div class="meta">
+            ${act.disc ? `<span>基础分 ${fmt(act.baseStart==null?10:act.baseStart)} 分 / 组</span><span>加分每次上限 2 分</span><span>违纪一次 −3 分</span><span>扣完后违纪一次 −10 分</span><span>不计排名分，直接计入总分</span>` : `
             <span>记录项：${esc(act.metric)}</span>
             ${useRank ? `<span>${act.order==='asc'?'数值越小名次越高':'数值越大名次越高'}</span>` : ''}
             <span>${act.includeBase ? `每单位 +${fmt(act.perUnit)} 分` : '只计排名分'}</span>
-            ${useRank ? `<span>排名分 ${act.rankPts.join(' / ')}</span>` : '<span>不计排名分</span>'}
+            ${useRank ? `<span>排名分 ${act.rankPts.join(' / ')}</span>` : '<span>不计排名分</span>'}`}
             ${act.enabled ? '' : '<span style="background:#FBE5DF;color:#B23A22">未计入总分</span>'}
           </div>
         </div>
@@ -567,12 +595,14 @@
       ${state.groups.length ? `
       <table class="score">
         <thead><tr>
-          <th>小组</th><th>${esc(act.metric)}</th><th class="num">基础分小计${act.includeBase ? (state.accumulateBase!==false ? '（计入总分）' : '（不计总分）') : ''}</th>${useRank ? '<th>名次</th><th class="num">排名分（计入总分）</th>' : ''}
+          ${act.disc
+            ? `<th>小组</th><th class="num">当前纪律分</th><th>表现加分（每次上限 2 分）</th><th>违纪扣分</th><th class="num">计入总分</th>`
+            : `<th>小组</th><th>${esc(act.metric)}</th><th class="num">基础分小计${act.includeBase ? (state.accumulateBase!==false ? '（计入总分）' : '（不计总分）') : ''}</th>${useRank ? '<th>名次</th><th class="num">排名分（计入总分）</th>' : ''}`}
         </tr></thead>
         <tbody>${rows}</tbody>
       </table>
       <div class="table-foot">
-        <span>${useRank ? `名次默认按${esc(act.metric)}自动排，并列同名次；需要按用时或裁定调整时可手动指定名次。` : `本项不计排名分，直接按 1 分为单位加减记录。`}</span>
+        <span>${act.disc ? `每组基础分 ${fmt(act.baseStart==null?10:act.baseStart)} 分起。表现较好可视情况加分（每次上限 2 分）；违纪一次 −3 分；纪律分扣完（≤0）后再违纪，一次 −10 分。本项不受「累积基础分」开关影响，始终计入总分。` : useRank ? `名次默认按${esc(act.metric)}自动排，并列同名次；需要按用时或裁定调整时可手动指定名次。` : `本项不计排名分，直接按 1 分为单位加减记录。`}</span>
         <button class="btn ink small danger" id="btnClearAct">清空本项成绩</button>
       </div>` : '<div class="empty">请先在「管理小组」中添加小组。</div>'}
     `;
@@ -586,6 +616,12 @@
       const c = cell(act.id, b.dataset.g);
       const next = (c.metric==null?0:Number(c.metric)) + Number(b.dataset.step);
       c.metric = useRank ? Math.max(0, next) : next;
+      save(); renderAll();
+    }));
+    panel.querySelectorAll('[data-disc]').forEach(b => b.addEventListener('click', () => {
+      const cur = res[b.dataset.g].metric;
+      const delta = b.dataset.disc==='v' ? (cur>0 ? -3 : -10) : Number(b.dataset.disc);
+      cell(act.id, b.dataset.g).metric = cur + delta;
       save(); renderAll();
     }));
     panel.querySelectorAll('[data-rank]').forEach(sel => sel.addEventListener('change', () => {
@@ -620,7 +656,7 @@
     }).join('');
     const useBase = state.accumulateBase!==false;
     const head = `<tr><th>小组</th>${state.activities.map(a=>`<th class="${a.enabled?'':'off'}">${esc(a.name)}</th>`).join('')}<th>总分</th></tr>`;
-    const body = totals.map(r => `<tr><td>${esc(r.g.name)}</td>${state.activities.map(a=>{const c=per[a.id][r.g.id];return `<td class="${a.enabled?'':'off'}">${fmt(c.rankPts + (useBase ? c.base : 0))}</td>`;}).join('')}<td class="tot">${fmt(r.total)}</td></tr>`).join('');
+    const body = totals.map(r => `<tr><td>${esc(r.g.name)}</td>${state.activities.map(a=>{const c=per[a.id][r.g.id];return `<td class="${a.enabled?'':'off'}">${fmt(c.rankPts + ((useBase || a.disc) ? c.base : 0))}</td>`;}).join('')}<td class="tot">${fmt(r.total)}</td></tr>`).join('');
     $('#projTable').innerHTML = `<table class="proj-table"><thead>${head}</thead><tbody>${body}</tbody></table>`;
   }
 
